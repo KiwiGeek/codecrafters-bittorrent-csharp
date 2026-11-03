@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using CodeCrafters.Bittorrent.Bencode;
 using CodeCrafters.Bittorrent.Classes;
+using CodeCrafters.Bittorrent.Extensions;
 
 // Parse arguments
 var (command, param) = args.Length switch
@@ -32,20 +33,25 @@ else if (command == "encode")
 }
 else if (command == "info")
 {
-    string fileName = param;
-    byte[] torrentFileBytes = await File.ReadAllBytesAsync(fileName);
-    BencodeToken? token = BencodeDecoder.Decode(torrentFileBytes);
+    byte[] torrentFileBytes = await File.ReadAllBytesAsync(param);
+    BencodeToken token = BencodeDecoder.Decode(torrentFileBytes);
     TorrentFile infoTorrentFile = JsonSerializer.Deserialize<TorrentFile>(JsonSerializer.Serialize(token))!;
     Console.WriteLine($"Tracker URL: {infoTorrentFile.Announce}");
     Console.WriteLine($"Length: {infoTorrentFile.Info!.Length}");
-    BencodeDictionary infoDict = ((BencodeDictionary)token).Values.GetValueOrDefault("info") as BencodeDictionary ?? throw new InvalidOperationException();
+    BencodeDictionary infoDict = ((BencodeDictionary)token).Values.GetValueOrDefault("info") as BencodeDictionary ??
+                                 throw new InvalidOperationException();
     Console.WriteLine($"Info Hash: {Convert.ToHexStringLower(SHA1.HashData(BencodeEncoder.Encode(infoDict)))}");
-    
-    // To calculate the info hash, you'll need to:
-    //
-    // Extract the info dictionary from the torrent file after parsing
-    // Bencode the contents of the info dictionary
-    //     Calculate the SHA-1 hash of this bencoded dictionary
+    Console.WriteLine($"Piece Length: {infoTorrentFile.Info.PieceLength!}");
+    Console.WriteLine("Piece Hashes:");
+    BencodeString piecesBencodeString = infoDict.Values.GetValueOrDefault("pieces") as BencodeString ?? throw new InvalidOperationException();
+    byte[] piecesByteArray = piecesBencodeString.Value;
+    int index = 0;
+    while (index < piecesByteArray.Length)
+    {
+        byte[] bytes = piecesByteArray.Skip(index).Take(20).ToArray();
+        index += 20;
+        Console.WriteLine(Convert.ToHexStringLower(bytes));
+    }
 }
 else
 {
