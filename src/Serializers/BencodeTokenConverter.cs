@@ -17,7 +17,7 @@ public class BencodeTokenConverter : JsonConverter<BencodeToken>
         switch (value)
         {
             case BencodeInteger integer:
-                writer.WriteNumberValue(integer.Value);
+                JsonSerializer.Serialize(writer, integer.Value, options);
                 break;
 
             case BencodeString str:
@@ -27,14 +27,13 @@ public class BencodeTokenConverter : JsonConverter<BencodeToken>
             case BencodeList list:
                  JsonSerializer.Serialize(writer, list.Value, options);
                  break;
-            //
-            // case BencodeDictionary dict:
-            //     JsonSerializer.Serialize(writer, dict.Values, options);
-            //     break;
+            
+             case BencodeDictionary dict:
+                 JsonSerializer.Serialize(writer, dict.Values, options);
+                 break;
 
             default:
-                throw new JsonException(
-                    $"Unsupported token type: {value.GetType()}");
+                throw new JsonException($"Unsupported token type: {value.GetType()}");
         }
     }
 }

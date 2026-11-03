@@ -4,7 +4,7 @@ using CodeCrafters.Bittorrent.Serializers;
 
 namespace CodeCrafters.Bittorrent.Bencode;
 
-[JsonConverter(typeof(BencodeListConverter))]
+
 public class BencodeList(List<BencodeToken> value) : BencodeToken
 {
     public List<BencodeToken> Value => value;

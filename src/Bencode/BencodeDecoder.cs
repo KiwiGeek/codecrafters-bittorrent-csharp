@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Security.Principal;
+using System.Text;
 
 namespace CodeCrafters.Bittorrent.Bencode;
 
@@ -30,8 +31,12 @@ public static class BencodeDecoder
                 case 57:
                     // it's a numeric digit; that makes this a BencodeString.
                     return DecodeString(data, ref position);
+                case 100:
+                    // it's a d; it's a dictionary
+                    position++;
+                    return DecodeDictionary(data, ref position);
                 case 105:
-                    // it's an i, and the last byte is an e; it's an integer
+                    // it's an i; it's an integer
                     return DecodeInteger(data, ref position);
                 case 108:
                     position++;
@@ -51,7 +56,7 @@ public static class BencodeDecoder
         while (data[index] != 58) numberBuilder.Append(Convert.ToChar(data[index++]));
         if (!int.TryParse(numberBuilder.ToString(), out int length)) throw new InvalidOperationException();
         BencodeString resultString = new BencodeString(data[(index+1)..(index+1 +int.Parse(numberBuilder.ToString()))].ToArray());
-        position += numberBuilder.Length + resultString.Value.Length;
+        position += numberBuilder.Length + resultString.Value.Length + 1;
         return resultString;
     }
 
@@ -61,7 +66,7 @@ public static class BencodeDecoder
         while (data[endIndex] != 101) endIndex++;
         string integerAsString = Encoding.UTF8.GetString(data)[(position+1)..(endIndex)];
         long integerAsLong = long.Parse(integerAsString);
-        position = endIndex;
+        position = endIndex+1;
         return new BencodeInteger(integerAsLong);
     }
 
@@ -71,10 +76,23 @@ public static class BencodeDecoder
         while (position < data.Length && data[position] != 101)
         {
             tokens.Add(RecursiveDecode(data, ref position)!);
-            position++;
         }
-
+        position++; // consume e
         return new BencodeList(tokens);
+    }
+
+    private static BencodeDictionary DecodeDictionary(ReadOnlySpan<byte> data, ref int position)
+    {
+        Dictionary<string, BencodeToken> tokens = [];
+        while (position < data.Length && data[position] != 101)
+        {
+            BencodeString keyBytes = DecodeString(data, ref position)!;
+            string key = Encoding.UTF8.GetString(keyBytes.Value);
+            BencodeToken value = RecursiveDecode(data, ref position)!;
+            tokens.Add(key, value);
+        }
+        position++; // consume e
+        return new  BencodeDictionary(tokens);
     }
         
 }
