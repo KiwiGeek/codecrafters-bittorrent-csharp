@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CodeCrafters.Bittorrent.Bencode;
@@ -20,6 +21,15 @@ if (command == "decode")
     if (token == null) throw new InvalidOperationException("Invalid encoded value: " + param);
     Console.WriteLine(JsonSerializer.Serialize(token));
 }
+else if (command == "encode")
+{
+    BencodeInteger integer = new (4);
+    BencodeString str = new("hello"u8.ToArray());
+    List<BencodeToken> listbt = [integer, str];
+    BencodeList list = new(listbt);
+    byte[] data = BencodeEncoder.Encode(list);
+    Console.WriteLine(string.Join(" ", data.Select(b => b.ToString("X2"))));
+}
 else if (command == "info")
 {
     string fileName = param;
@@ -28,6 +38,14 @@ else if (command == "info")
     TorrentFile infoTorrentFile = JsonSerializer.Deserialize<TorrentFile>(JsonSerializer.Serialize(token))!;
     Console.WriteLine($"Tracker URL: {infoTorrentFile.Announce}");
     Console.WriteLine($"Length: {infoTorrentFile.Info!.Length}");
+    BencodeDictionary infoDict = ((BencodeDictionary)token).Values.GetValueOrDefault("info") as BencodeDictionary ?? throw new InvalidOperationException();
+    Console.WriteLine($"Info Hash: {Convert.ToHexStringLower(SHA1.HashData(BencodeEncoder.Encode(infoDict)))}");
+    
+    // To calculate the info hash, you'll need to:
+    //
+    // Extract the info dictionary from the torrent file after parsing
+    // Bencode the contents of the info dictionary
+    //     Calculate the SHA-1 hash of this bencoded dictionary
 }
 else
 {
