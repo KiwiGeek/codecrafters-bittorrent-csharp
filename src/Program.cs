@@ -1,4 +1,6 @@
 using System.Collections.Specialized;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -90,6 +92,40 @@ else if (command == "peers")
         index += 6;
         Console.WriteLine($"{ipAddress}:{portNumber}");
     }
+}
+else if (command == "handshake")
+{
+    // for the handshake, there's a third argument, in the format ipaddress:port
+    string[] networkAddress = args[2].Split(":");
+    IPEndPoint ipEndPoint = new(IPAddress.Parse(networkAddress[0]), int.Parse(networkAddress[1]));
+
+    byte[] message = new byte[68];
+    message[0] = 19;
+    "BitTorrent protocol"u8.CopyTo(message.AsSpan(1));
+
+    // we now need to get the infohash.
+    byte[] torrentFileBytes = await File.ReadAllBytesAsync(param);
+    BencodeToken token = BencodeDecoder.Decode(torrentFileBytes);
+    BencodeDictionary infoDict = ((BencodeDictionary)token).Values.GetValueOrDefault("info") as BencodeDictionary ??
+                                 throw new InvalidOperationException();
+    byte[] infoHash = SHA1.HashData(BencodeEncoder.Encode(infoDict));
+    infoHash.CopyTo(message, 28);
+
+    byte[] peerId = RandomNumberGenerator.GetBytes(20);
+    peerId.CopyTo(message, 48);
+
+
+
+    using Socket client = new(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+    await client.ConnectAsync(ipEndPoint);
+    _ = await client.SendAsync(message, SocketFlags.None);
+    
+    byte[] response = new byte[68];
+
+    int received = await client.ReceiveAsync(response.AsMemory());
+    
+    byte[] responsePeerId = response.Skip(48).Take(20).ToArray();
+    Console.WriteLine($"Peer ID: {Convert.ToHexStringLower(responsePeerId)}");
 }
 else
 {
