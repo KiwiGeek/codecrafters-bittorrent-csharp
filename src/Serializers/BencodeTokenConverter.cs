@@ -24,9 +24,9 @@ public class BencodeTokenConverter : JsonConverter<BencodeToken>
                 writer.WriteStringValue(str.Value);
                 break;
             
-            // case BencodeList list:
-            //     JsonSerializer.Serialize(writer, list.Values, options);
-            //     break;
+            case BencodeList list:
+                 JsonSerializer.Serialize(writer, list.Value, options);
+                 break;
             //
             // case BencodeDictionary dict:
             //     JsonSerializer.Serialize(writer, dict.Values, options);

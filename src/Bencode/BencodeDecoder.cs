@@ -6,51 +6,75 @@ public static class BencodeDecoder
 {
     public static BencodeToken Decode(ReadOnlySpan<byte> data)
     {
-        return RecursiveDecode(data) ?? throw new InvalidOperationException();
+        int position = 0;
+        return RecursiveDecode(data, ref position) ?? throw new InvalidOperationException();
     }
 
-    private static BencodeToken? RecursiveDecode(ReadOnlySpan<byte> data)
+    private static BencodeToken? RecursiveDecode(ReadOnlySpan<byte> data, ref int position)
     {
-        // identify the type based on the first byte.
-        byte firstByte = data[0];
-        byte lastbyte = data[^1];
-        switch (firstByte, lastbyte)
+        while (position < data.Length)
         {
-            case (48, _):
-            case (49, _):
-            case (50, _):
-            case (51, _):
-            case (52, _):
-            case (53, _):
-            case (54, _):
-            case (55, _):
-            case (56, _):
-            case (57, _):
-                // it's a numeric digit; that makes this a BencodeString.
-                return DecodeString(data);
-                break;
-            case (105, 101):
-                // it's an i, and the last byte is an e; it's an integer
-                return DecodeInteger(data);
-            default:
-                throw new NotImplementedException();
+            // identify the type based on the first byte.
+            byte firstByte = data[position];
+            switch (firstByte)
+            {
+                case 48:
+                case 49:
+                case 50:
+                case 51:
+                case 52:
+                case 53:
+                case 54:
+                case 55:
+                case 56:
+                case 57:
+                    // it's a numeric digit; that makes this a BencodeString.
+                    return DecodeString(data, ref position);
+                case 105:
+                    // it's an i, and the last byte is an e; it's an integer
+                    return DecodeInteger(data, ref position);
+                case 108:
+                    position++;
+                    return DecodeList(data, ref position);
+                default:
+                    throw new NotImplementedException();
+            }   
         }
+        return null;
     }
 
-    private static BencodeString? DecodeString(ReadOnlySpan<byte> data)
+    private static BencodeString? DecodeString(ReadOnlySpan<byte> data, ref int position)
     {
         // find the number at the start of the string; everything before a : (ascii 58)
         StringBuilder numberBuilder = new();
-        int index = 0;
-        while (data[index] != 58)
-        {
-            numberBuilder.Append(Convert.ToChar(data[index++]));
-        }
+        int index = position;
+        while (data[index] != 58) numberBuilder.Append(Convert.ToChar(data[index++]));
         if (!int.TryParse(numberBuilder.ToString(), out int length)) throw new InvalidOperationException();
-        BencodeString resultString = new BencodeString(data[(index+1)..].ToArray());
+        BencodeString resultString = new BencodeString(data[(index+1)..(index+1 +int.Parse(numberBuilder.ToString()))].ToArray());
+        position += numberBuilder.Length + resultString.Value.Length;
         return resultString;
     }
 
-    private static BencodeInteger DecodeInteger(ReadOnlySpan<byte> data) =>
-        new(long.Parse(Encoding.UTF8.GetString(data)[1..^1]));
+    private static BencodeInteger DecodeInteger(ReadOnlySpan<byte> data, ref int position)
+    {
+        int endIndex = position;
+        while (data[endIndex] != 101) endIndex++;
+        string integerAsString = Encoding.UTF8.GetString(data)[(position+1)..(endIndex)];
+        long integerAsLong = long.Parse(integerAsString);
+        position = endIndex;
+        return new BencodeInteger(integerAsLong);
+    }
+
+    private static BencodeList DecodeList(ReadOnlySpan<byte> data, ref int position)
+    {
+        List<BencodeToken> tokens = [];
+        while (position < data.Length && data[position] != 101)
+        {
+            tokens.Add(RecursiveDecode(data, ref position)!);
+            position++;
+        }
+
+        return new BencodeList(tokens);
+    }
+        
 }
