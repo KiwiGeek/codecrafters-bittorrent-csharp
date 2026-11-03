@@ -63,7 +63,7 @@ public static class BencodeDecoder
     {
         int endIndex = position;
         while (data[endIndex] != 101) endIndex++;
-        string integerAsString = Encoding.UTF8.GetString(data)[(position+1)..(endIndex)];
+        string integerAsString = Encoding.ASCII.GetString(data[(position + 1)..endIndex]);
         long integerAsLong = long.Parse(integerAsString);
         position = endIndex+1;
         return new BencodeInteger(integerAsLong);
