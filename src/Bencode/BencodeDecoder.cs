@@ -1,5 +1,4 @@
-﻿using System.Security.Principal;
-using System.Text;
+﻿using System.Text;
 
 namespace CodeCrafters.Bittorrent.Bencode;
 
@@ -48,14 +47,14 @@ public static class BencodeDecoder
         return null;
     }
 
-    private static BencodeString? DecodeString(ReadOnlySpan<byte> data, ref int position)
+    private static BencodeString DecodeString(ReadOnlySpan<byte> data, ref int position)
     {
         // find the number at the start of the string; everything before a : (ascii 58)
         StringBuilder numberBuilder = new();
         int index = position;
         while (data[index] != 58) numberBuilder.Append(Convert.ToChar(data[index++]));
-        if (!int.TryParse(numberBuilder.ToString(), out int length)) throw new InvalidOperationException();
-        BencodeString resultString = new BencodeString(data[(index+1)..(index+1 +int.Parse(numberBuilder.ToString()))].ToArray());
+        if (!int.TryParse(numberBuilder.ToString(), out int _)) throw new InvalidOperationException();
+        BencodeString resultString = new (data[(index+1)..(index+1 +int.Parse(numberBuilder.ToString()))].ToArray());
         position += numberBuilder.Length + resultString.Value.Length + 1;
         return resultString;
     }
@@ -86,7 +85,7 @@ public static class BencodeDecoder
         Dictionary<string, BencodeToken> tokens = [];
         while (position < data.Length && data[position] != 101)
         {
-            BencodeString keyBytes = DecodeString(data, ref position)!;
+            BencodeString keyBytes = DecodeString(data, ref position);
             string key = Encoding.UTF8.GetString(keyBytes.Value);
             BencodeToken value = RecursiveDecode(data, ref position)!;
             tokens.Add(key, value);

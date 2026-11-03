@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CodeCrafters.Bittorrent.Bencode;
+using CodeCrafters.Bittorrent.Classes;
 
 // Parse arguments
 var (command, param) = args.Length switch
@@ -18,31 +19,15 @@ if (command == "decode")
     BencodeToken? token = BencodeDecoder.Decode(paramByteArray);
     if (token == null) throw new InvalidOperationException("Invalid encoded value: " + param);
     Console.WriteLine(JsonSerializer.Serialize(token));
-    // var encodedValue = param;
-    // if (Char.IsDigit(encodedValue[0]))
-    // {
-    //     // Example: "5:hello" -> "hello"
-    //     var colonIndex = encodedValue.IndexOf(':');
-    //     if (colonIndex != -1)
-    //     {
-    //         var strLength = int.Parse(encodedValue[..colonIndex]);
-    //         var strValue = encodedValue.Substring(colonIndex + 1, strLength);
-    //         Console.WriteLine(JsonSerializer.Serialize(strValue));
-    //     }
-    //     else
-    //     {
-    //         throw new InvalidOperationException("Invalid encoded value: " + encodedValue);
-    //     }
-    // }
-    // else if (BencodeToken.IsBencodeInteger(encodedValue))
-    // {
-    //     BencodeInteger bencodeInteger = BencodeInteger.FromString(encodedValue);
-    //     Console.WriteLine(bencodeInteger.Value);
-    // }
-    // else
-    // {
-    //     throw new InvalidOperationException("Unhandled encoded value: " + encodedValue);
-    // }
+}
+else if (command == "info")
+{
+    string fileName = param;
+    byte[] torrentFileBytes = await File.ReadAllBytesAsync(fileName);
+    BencodeToken? token = BencodeDecoder.Decode(torrentFileBytes);
+    TorrentFile infoTorrentFile = JsonSerializer.Deserialize<TorrentFile>(JsonSerializer.Serialize(token))!;
+    Console.WriteLine($"Tracker URL: {infoTorrentFile.Announce}");
+    Console.WriteLine($"Length: {infoTorrentFile.Info!.Length}");
 }
 else
 {
