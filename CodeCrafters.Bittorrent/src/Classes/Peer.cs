@@ -15,6 +15,7 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
     private readonly TaskCompletionSource _unchoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _bitfieldReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<byte[]> _blockReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool loopStarted = false;
 
     public async Task HandshakeAsync(TorrentInfo torrent)
     {
@@ -94,7 +95,11 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
 
     public async Task<byte[]> GetPiece(long pieceIndex)
     {
-        Task receiveTask = BeginMessageLoop();
+        if (!loopStarted)
+        {
+            _ = BeginMessageLoop();
+            loopStarted = true;
+        }
         await _bitfieldReceived.Task;
         await SendInterestedMessageAsync();
         await _unchoked.Task;

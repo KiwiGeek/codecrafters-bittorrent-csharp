@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.Intrinsics.Arm;
+using System.Security.Cryptography;
 using System.Text;
 using CodeCrafters.Bittorrent.Bencode;
 using CodeCrafters.Bittorrent.Classes;
@@ -72,7 +74,31 @@ internal static class Program
                     await File.WriteAllBytesAsync(pieceOutputFile, pieceData);
                 }
                 break;
-            
+            case "download":
+                {
+                    string action = args[1];
+                    Debug.Assert(action == "-o");
+                    string torrentOutputFile = args[2];
+                    string torrentFile = args[3];
+                    TorrentInfo torrent = TorrentInfo.FromTorrentFileBytes(await File.ReadAllBytesAsync(torrentFile));
+                    List<IPEndPoint> peers = await torrent.GetPeersAsync();
+                    Peer peer = new Peer(peers[Random.Shared.Next(0, peers.Count-1)]);
+                    await peer.HandshakeAsync(torrent);
+                    byte[] fileData = new byte[torrent.Length];
+                    for (int i = 0; i < torrent.Pieces.Count; i++)
+                    {
+                        byte[] pieceData;
+                        do
+                        {
+                            pieceData = await peer.GetPiece(i);
+                        }
+                        while (!SHA1.HashData(pieceData).AsSpan().SequenceEqual(torrent.Pieces[i]));
+                        Console.WriteLine($"Received piece {i+1} of {torrent.Pieces.Count}");
+                        pieceData.CopyTo(fileData, i*torrent.PieceLength);
+                    }
+                    await File.WriteAllBytesAsync(torrentOutputFile, fileData);
+                }
+                break;
             default:
                 throw new InvalidOperationException($"Invalid command: {command}");
         }
