@@ -105,11 +105,21 @@ internal static class Program
             }
                 break;
             case "magnet_parse":
-                Uri myUri = new Uri(parameter);
-                string trackerUrl = HttpUtility.ParseQueryString(myUri.Query).Get("tr")!;
-                string infoHash = HttpUtility.ParseQueryString(myUri.Query).Get("xt")![9..];
-                Console.WriteLine($"Tracker URL: {trackerUrl}");
-                Console.WriteLine($"Info Hash: {infoHash}");
+                {
+                    MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
+                    Console.WriteLine($"Tracker URL: {magnet.Announce}");
+                    Console.WriteLine($"Info Hash: {magnet.InfoHash.ToHexString()}");
+                }
+                break;
+            case "magnet_handshake":
+                {
+                    MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
+                    List<IPEndPoint> peers = await magnet.GetPeersAsync();
+                    Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
+                    await peer.HandshakeAsync(magnet);
+                    Console.WriteLine($"Peer ID: {peer.Id!.ToHexString()}");
+                    peer.Dispose();
+                }
                 break;
             default:
                 throw new InvalidOperationException($"Invalid command: {command}");

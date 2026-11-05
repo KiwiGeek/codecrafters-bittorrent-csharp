@@ -34,6 +34,23 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         _torrent = torrent;
     }
 
+    public async Task HandshakeAsync(MagnetInfo magent)
+    {
+        byte[] message = new byte[68];
+        message[0] = 19;
+        "BitTorrent protocol"u8.CopyTo(message.AsSpan(1));
+        message[25] = 16;
+        magent.InfoHash.CopyTo(message, 28);
+        RandomNumberGenerator.GetBytes(20).CopyTo(message, 48);
+        _client = new(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        await _client.ConnectAsync(ipEndPoint);
+        await _client.SendAsync(message, SocketFlags.None);
+        byte[] response = new byte[68];
+        await _client.ReceiveAsync(response.AsMemory());
+        Id = new byte[20];
+        response.Skip(48).Take(20).ToArray().CopyTo(Id, 0);
+    }
+
     public Task BeginMessageLoop()=> ReceiveLoopAsync();
     
     private async Task ReceiveLoopAsync()
