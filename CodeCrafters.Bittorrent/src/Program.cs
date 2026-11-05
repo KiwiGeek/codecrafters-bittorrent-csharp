@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
 using System.Text;
+using System.Web;
 using CodeCrafters.Bittorrent.Bencode;
 using CodeCrafters.Bittorrent.Classes;
 using CodeCrafters.Bittorrent.Extensions;
@@ -75,29 +77,39 @@ internal static class Program
                 }
                 break;
             case "download":
-                {
-                    string action = args[1];
-                    Debug.Assert(action == "-o");
-                    string torrentOutputFile = args[2];
-                    string torrentFile = args[3];
-                    TorrentInfo torrent = TorrentInfo.FromTorrentFileBytes(await File.ReadAllBytesAsync(torrentFile));
-                    List<IPEndPoint> peers = await torrent.GetPeersAsync();
-                    Peer peer = new Peer(peers[Random.Shared.Next(0, peers.Count-1)]);
-                    await peer.HandshakeAsync(torrent);
-                    byte[] fileData = new byte[torrent.Length];
-                    for (int i = 0; i < torrent.Pieces.Count; i++)
+            {
+                string torrentOutputFile = args[2];
+                string torrentFile = args[3];
+                TorrentInfo torrent = TorrentInfo.FromTorrentFileBytes(await File.ReadAllBytesAsync(torrentFile));
+                List<IPEndPoint> endpoints = await torrent.GetPeersAsync();
+                byte[] fileData = new byte[torrent.Length];
+                ConcurrentQueue<int> pendingPieces = new(Enumerable.Range(0, torrent.Pieces.Count));
+                await Parallel.ForEachAsync(endpoints.Take(5), new ParallelOptions { MaxDegreeOfParallelism = 5 },
+                    async (endpoint, cancellationToken) =>
                     {
-                        byte[] pieceData;
-                        do
+                        using Peer peer = new(endpoint);
+                        await peer.HandshakeAsync(torrent);
+                        while (pendingPieces.TryDequeue(out int i))
                         {
-                            pieceData = await peer.GetPiece(i);
+                            byte[] pieceData;
+                            do
+                            {
+                                pieceData = await peer.GetPiece(i);
+                            }
+                            while (!SHA1.HashData(pieceData).AsSpan().SequenceEqual(torrent.Pieces[i]));
+                            pieceData.CopyTo(fileData, i * torrent.PieceLength);
+                            Console.WriteLine($"Received piece {i + 1} of {torrent.Pieces.Count}");
                         }
-                        while (!SHA1.HashData(pieceData).AsSpan().SequenceEqual(torrent.Pieces[i]));
-                        Console.WriteLine($"Received piece {i+1} of {torrent.Pieces.Count}");
-                        pieceData.CopyTo(fileData, i*torrent.PieceLength);
-                    }
-                    await File.WriteAllBytesAsync(torrentOutputFile, fileData);
-                }
+                    });
+                await File.WriteAllBytesAsync(torrentOutputFile, fileData);
+            }
+                break;
+            case "magnet_parse":
+                Uri myUri = new Uri(parameter);
+                string trackerUrl = HttpUtility.ParseQueryString(myUri.Query).Get("tr")!;
+                string infoHash = HttpUtility.ParseQueryString(myUri.Query).Get("xt")![9..];
+                Console.WriteLine($"Tracker URL: {trackerUrl}");
+                Console.WriteLine($"Info Hash: {infoHash}");
                 break;
             default:
                 throw new InvalidOperationException($"Invalid command: {command}");
