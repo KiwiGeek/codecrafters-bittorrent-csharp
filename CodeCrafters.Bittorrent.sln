@@ -1,10 +1,12 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 25.0.1700.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrafters.Bittorrent", "CodeCrafters.Bittorrent.csproj", "{54DDD38B-A46D-494B-9636-0020280D27AB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrafters.Bittorrent", "CodeCrafters.Bittorrent\CodeCrafters.Bittorrent.csproj", "{54DDD38B-A46D-494B-9636-0020280D27AB}"
 
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeCrafters.Bittorrent.Tests", "CodeCrafters.Bittorrent.Tests\CodeCrafters.Bittorrent.Tests.csproj", "{CBB5C9A0-629A-4884-A7EF-782B44EDD6DB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,6 +18,10 @@ Global
 		{54DDD38B-A46D-494B-9636-0020280D27AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{54DDD38B-A46D-494B-9636-0020280D27AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{54DDD38B-A46D-494B-9636-0020280D27AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBB5C9A0-629A-4884-A7EF-782B44EDD6DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBB5C9A0-629A-4884-A7EF-782B44EDD6DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBB5C9A0-629A-4884-A7EF-782B44EDD6DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBB5C9A0-629A-4884-A7EF-782B44EDD6DB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

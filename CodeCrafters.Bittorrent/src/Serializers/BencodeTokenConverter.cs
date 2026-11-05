@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeCrafters.Bittorrent.Bencode;
 
@@ -27,9 +28,16 @@ public class BencodeTokenConverter : JsonConverter<BencodeToken>
                  JsonSerializer.Serialize(writer, list.Value, options);
                  break;
             
-             case BencodeDictionary dict:
-                 JsonSerializer.Serialize(writer, dict.Values, options);
-                 break;
+            case BencodeDictionary dictionary:
+                writer.WriteStartObject();
+
+                foreach ((BencodeString key, BencodeToken token) in dictionary.Value)
+                {
+                    writer.WritePropertyName(Encoding.UTF8.GetString(key.Value));
+                    JsonSerializer.Serialize(writer, token, options);
+                }
+                writer.WriteEndObject();
+                break;
 
             default:
                 throw new JsonException($"Unsupported token type: {value.GetType()}");
