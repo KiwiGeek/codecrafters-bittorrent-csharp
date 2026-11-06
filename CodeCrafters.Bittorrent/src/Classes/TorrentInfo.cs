@@ -49,6 +49,23 @@ public record TorrentInfo
         };
     }
 
+    public static TorrentInfo FromMagnetBytes(byte[] infoBytes, string announce)
+    {
+        ArgumentNullException.ThrowIfNull(infoBytes);
+        ArgumentNullException.ThrowIfNull(announce);
+        BencodeDictionary infoDict = BencodeDecoder.Decode(infoBytes) as  BencodeDictionary ?? throw new InvalidOperationException();
+        BencodeString piecesBencodeString = infoDict.Value.GetValueOrDefault("pieces") as BencodeString ?? throw new InvalidOperationException();
+        return new TorrentInfo(infoDict)
+        {
+            Announce = announce,
+            CreatedBy = string.Empty,
+            Length = Convert.ToInt32(((BencodeInteger)infoDict["length"]).Value),
+            Name = ((BencodeString)infoDict["name"]).ToString(),
+            PieceLength = Convert.ToInt32(((BencodeInteger)infoDict["piece length"]).Value),
+            Pieces = piecesBencodeString.Value.Chunk(20).ToList()
+        };
+    }
+
     public async Task<List<IPEndPoint>> GetPeersAsync()
     {
         List<IPEndPoint> result = [];

@@ -106,13 +106,27 @@ internal static class Program
             }
                 break;
             case "magnet_parse":
-                {
-                    MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
-                    Console.WriteLine($"Tracker URL: {magnet.Announce}");
-                    Console.WriteLine($"Info Hash: {magnet.InfoHash.ToHexString()}");
-                }
+            {
+                MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
+                Console.WriteLine($"Tracker URL: {magnet.Announce}");
+                Console.WriteLine($"Info Hash: {magnet.InfoHash.ToHexString()}");
+            }
                 break;
             case "magnet_handshake":
+            {
+                MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
+                List<IPEndPoint> peers = (await magnet.GetPeersAsync())
+                    .Where(p => p.Port != 6881)
+                    .ToList();
+                Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
+                await peer.HandshakeAsync(magnet);
+                Console.WriteLine($"Peer ID: {peer.Id!.ToHexString()}");
+                long peerMetadataId = await peer.ExtensionHandshakeAsync(magnet);
+                Console.WriteLine($"Peer Metadata Extension ID: {peerMetadataId}");
+                peer.Dispose();
+            }
+                break;
+            case "magnet_info":
                 {
                     MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
                     List<IPEndPoint> peers = (await magnet.GetPeersAsync())
@@ -120,9 +134,14 @@ internal static class Program
                         .ToList();
                     Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
                     await peer.HandshakeAsync(magnet);
-                    Console.WriteLine($"Peer ID: {peer.Id!.ToHexString()}");
                     await peer.ExtensionHandshakeAsync(magnet);
-                    peer.Dispose();
+                    TorrentInfo torrent = await peer.RequestMetadata(magnet);
+                    Console.WriteLine($"Tracker URL: {torrent.Announce}");
+                    Console.WriteLine($"Length: {torrent.Length}");
+                    Console.WriteLine($"Info Hash: {torrent.InfoHash.ToHexString()}");
+                    Console.WriteLine($"Piece Length: {torrent.PieceLength}");
+                    Console.WriteLine("Piece Hashes:");
+                    torrent.Pieces.ForEach(f=> Console.WriteLine(f.ToHexString()));
                 }
                 break;
             default:

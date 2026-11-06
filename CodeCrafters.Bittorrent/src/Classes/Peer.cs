@@ -1,10 +1,8 @@
 ﻿using System.Buffers.Binary;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using CodeCrafters.Bittorrent.Bencode;
-using CodeCrafters.Bittorrent.Extensions;
 
 namespace CodeCrafters.Bittorrent.Classes;
 
@@ -17,8 +15,9 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
     private readonly TaskCompletionSource _unchoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _bitfieldReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<byte[]> _blockReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private bool loopStarted = false;
+    private bool _loopStarted = false;
     private bool _supportsExtensions = false;
+    private long _peerMetadataExtensionId = 0;
 
     public async Task HandshakeAsync(TorrentInfo torrent)
     {
@@ -55,7 +54,7 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         response.Skip(48).Take(20).ToArray().CopyTo(Id, 0);
     }
     
-    public async Task ExtensionHandshakeAsync(MagnetInfo magent)
+    public async Task<long> ExtensionHandshakeAsync(MagnetInfo magent)
     {
         // await the bitfield message
         byte[] bitfieldResponse = new byte[6];
@@ -71,10 +70,31 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         await _client.ReceiveAsync(extensionResponse, SocketFlags.None);
         byte[] responseBytes = new byte[Convert.ToInt32(extensionResponse[3])];
         await _client.ReceiveAsync(responseBytes.AsMemory());
-        BencodeDictionary? response = BencodeDecoder.Decode(responseBytes[2..]) as BencodeDictionary;
-        BencodeDictionary metadataDictionary = (BencodeDictionary)response!["m"];
-        BencodeInteger metadataId =  (BencodeInteger)metadataDictionary["ut_metadata"];
-        Console.WriteLine($"Peer Metadata Extension ID: {metadataId.Value}");
+        _peerMetadataExtensionId = ((BencodeInteger)((BencodeDictionary)(BencodeDecoder.Decode(responseBytes[2..]) as BencodeDictionary)!["m"])["ut_metadata"]).Value;
+        return _peerMetadataExtensionId;
+    }
+    
+    public async Task<TorrentInfo> RequestMetadata(MagnetInfo magnet)
+    {
+        using NetworkStream stream = new(_client, ownsSocket: false);
+        BencodeToken requestDictionary = BencodeDecoder.Decode("d8:msg_typei0e5:piecei0ee"u8);
+        byte[] requestMessagePayload = [Convert.ToByte(_peerMetadataExtensionId), .. requestDictionary.ToBencode()];
+        byte[] message = new byte[requestMessagePayload.Length + 5];
+        requestMessagePayload.CopyTo(message, 5);
+        message[4] = 20;
+        message[3] = Convert.ToByte(requestMessagePayload.Length+1);
+        await _client.SendAsync(message, SocketFlags.None);
+        byte[] responseLengthBytes = new byte[4];
+        await stream.ReadExactlyAsync(responseLengthBytes);
+        byte[] responseBytes = new byte[BinaryPrimitives.ReadInt32BigEndian(responseLengthBytes)];
+        await stream.ReadExactlyAsync(responseBytes);
+        BencodeDictionary response = BencodeDecoder.Decode(responseBytes[2..]) as BencodeDictionary;
+        int metadataLength = Convert.ToInt32(((BencodeInteger)response["total_size"]).Value);
+        byte[] metadataBytes = new byte[metadataLength];
+        Buffer.BlockCopy(responseBytes, (int)((responseBytes.Length)-metadataLength), metadataBytes, 0, metadataLength);
+        BencodeDictionary metadata = BencodeDecoder.Decode(metadataBytes) as BencodeDictionary;
+        TorrentInfo torrent = TorrentInfo.FromMagnetBytes(metadataBytes, magnet.Announce);
+        return torrent;
     }
 
     public Task BeginMessageLoop()=> ReceiveLoopAsync();
@@ -138,10 +158,10 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
 
     public async Task<byte[]> GetPiece(long pieceIndex)
     {
-        if (!loopStarted)
+        if (!_loopStarted)
         {
             _ = BeginMessageLoop();
-            loopStarted = true;
+            _loopStarted = true;
         }
         await _bitfieldReceived.Task;
         await SendInterestedMessageAsync();
@@ -194,4 +214,6 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         byte[] message = [0, 0, 0, 1, 2];
         await _client?.SendAsync(message)!;
     }
+
+
 }
