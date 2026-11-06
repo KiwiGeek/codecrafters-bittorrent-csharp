@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using CodeCrafters.Bittorrent.Bencode;
+using CodeCrafters.Bittorrent.Extensions;
 
 namespace CodeCrafters.Bittorrent.Classes;
 
@@ -16,6 +18,7 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
     private readonly TaskCompletionSource _bitfieldReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<byte[]> _blockReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool loopStarted = false;
+    private bool _supportsExtensions = false;
 
     public async Task HandshakeAsync(TorrentInfo torrent)
     {
@@ -47,8 +50,27 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         await _client.SendAsync(message, SocketFlags.None);
         byte[] response = new byte[68];
         await _client.ReceiveAsync(response.AsMemory());
+        if (response[25] == 16) _supportsExtensions = true;
         Id = new byte[20];
         response.Skip(48).Take(20).ToArray().CopyTo(Id, 0);
+    }
+    
+    public async Task ExtensionHandshakeAsync(MagnetInfo magent)
+    {
+        // await the bitfield message
+        byte[] bitfieldResponse = new byte[6];
+        await _client.ReceiveAsync(bitfieldResponse, SocketFlags.None);
+        BencodeToken extensionDictionary = BencodeDecoder.Decode("d1:md11:ut_metadatai69eee"u8);
+        byte[] extensionMessagePayload = [0, .. extensionDictionary.ToBencode()];
+        byte[] message = new byte[extensionMessagePayload.Length + 5];
+        extensionMessagePayload.CopyTo(message, 5);
+        message[4] = 20;
+        message[3] = Convert.ToByte(extensionMessagePayload.Length+1);
+        await _client.SendAsync(message, SocketFlags.None);
+        byte[] extensionResponse = new byte[4];
+        await _client.ReceiveAsync(extensionResponse, SocketFlags.None);
+        byte[] response = new byte[Convert.ToInt32(extensionResponse[3])];
+        await _client.ReceiveAsync(response.AsMemory());
     }
 
     public Task BeginMessageLoop()=> ReceiveLoopAsync();

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
 using System.Text;
@@ -114,10 +115,13 @@ internal static class Program
             case "magnet_handshake":
                 {
                     MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
-                    List<IPEndPoint> peers = await magnet.GetPeersAsync();
+                    List<IPEndPoint> peers = (await magnet.GetPeersAsync())
+                        .Where(p => p.Port != 6881)
+                        .ToList();
                     Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
                     await peer.HandshakeAsync(magnet);
                     Console.WriteLine($"Peer ID: {peer.Id!.ToHexString()}");
+                    await peer.ExtensionHandshakeAsync(magnet);
                     peer.Dispose();
                 }
                 break;
