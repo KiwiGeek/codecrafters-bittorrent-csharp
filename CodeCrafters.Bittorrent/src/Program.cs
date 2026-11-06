@@ -127,22 +127,49 @@ internal static class Program
             }
                 break;
             case "magnet_info":
-                {
-                    MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
-                    List<IPEndPoint> peers = (await magnet.GetPeersAsync())
-                        .Where(p => p.Port != 6881)
-                        .ToList();
-                    Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
-                    await peer.HandshakeAsync(magnet);
-                    await peer.ExtensionHandshakeAsync(magnet);
-                    TorrentInfo torrent = await peer.RequestMetadata(magnet);
-                    Console.WriteLine($"Tracker URL: {torrent.Announce}");
-                    Console.WriteLine($"Length: {torrent.Length}");
-                    Console.WriteLine($"Info Hash: {torrent.InfoHash.ToHexString()}");
-                    Console.WriteLine($"Piece Length: {torrent.PieceLength}");
-                    Console.WriteLine("Piece Hashes:");
-                    torrent.Pieces.ForEach(f=> Console.WriteLine(f.ToHexString()));
-                }
+            {
+                MagnetInfo magnet = MagnetInfo.FromMagentURL(parameter);
+                List<IPEndPoint> peers = (await magnet.GetPeersAsync())
+                    .Where(p => p.Port != 6881)
+                    .ToList();
+                Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
+                await peer.HandshakeAsync(magnet);
+                await peer.ExtensionHandshakeAsync(magnet);
+                TorrentInfo torrent = await peer.RequestMetadata(magnet);
+                Console.WriteLine($"Tracker URL: {torrent.Announce}");
+                Console.WriteLine($"Length: {torrent.Length}");
+                Console.WriteLine($"Info Hash: {torrent.InfoHash.ToHexString()}");
+                Console.WriteLine($"Piece Length: {torrent.PieceLength}");
+                Console.WriteLine("Piece Hashes:");
+                torrent.Pieces.ForEach(f=> Console.WriteLine(f.ToHexString()));
+            }
+                break;
+            case "magnet_download_piece":
+            {
+                string action = args[1];
+                Debug.Assert(action == "-o");
+                string pieceOutputFile = args[2];
+                string magnetLink = args[3];
+                long pieceIndex = Convert.ToInt64(args[4]);
+                Console.WriteLine($"aciton: {action}");
+                Console.WriteLine($"output file: {pieceOutputFile}");
+                Console.WriteLine($"Magnet Link: {magnetLink}");
+                Console.WriteLine($"Piece Index: {pieceIndex}");
+                MagnetInfo magnet = MagnetInfo.FromMagentURL(magnetLink);
+                List<IPEndPoint> peers = (await magnet.GetPeersAsync())
+                    .Where(p => p.Port != 6881)
+                    .ToList();
+                Console.WriteLine("Peers: " + peers.Count);
+                Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
+                await peer.HandshakeAsync(magnet);
+                Console.WriteLine("Handshaked");
+                await peer.ExtensionHandshakeAsync(magnet);
+                Console.WriteLine("Extended handshake");
+                TorrentInfo torrent = await peer.RequestMetadata(magnet);
+                Console.WriteLine("Got Torrent");
+                byte[] pieceData = await peer.GetPiece(pieceIndex);
+                await File.WriteAllBytesAsync(pieceOutputFile, pieceData);
+            }
                 break;
             default:
                 throw new InvalidOperationException($"Invalid command: {command}");

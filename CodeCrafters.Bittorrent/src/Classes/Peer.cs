@@ -94,6 +94,7 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         Buffer.BlockCopy(responseBytes, (int)((responseBytes.Length)-metadataLength), metadataBytes, 0, metadataLength);
         BencodeDictionary metadata = BencodeDecoder.Decode(metadataBytes) as BencodeDictionary;
         TorrentInfo torrent = TorrentInfo.FromMagnetBytes(metadataBytes, magnet.Announce);
+        _torrent = torrent;
         return torrent;
     }
 
@@ -163,7 +164,7 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
             _ = BeginMessageLoop();
             _loopStarted = true;
         }
-        await _bitfieldReceived.Task;
+        //if (!_bitfieldReceived.Task.IsCompleted) await _bitfieldReceived.Task;    
         await SendInterestedMessageAsync();
         await _unchoked.Task;
         List<Block> blocks = GetBlocksForPiece(pieceIndex);
