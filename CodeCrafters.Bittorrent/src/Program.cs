@@ -151,24 +151,53 @@ internal static class Program
                 string pieceOutputFile = args[2];
                 string magnetLink = args[3];
                 long pieceIndex = Convert.ToInt64(args[4]);
-                Console.WriteLine($"aciton: {action}");
-                Console.WriteLine($"output file: {pieceOutputFile}");
-                Console.WriteLine($"Magnet Link: {magnetLink}");
-                Console.WriteLine($"Piece Index: {pieceIndex}");
                 MagnetInfo magnet = MagnetInfo.FromMagentURL(magnetLink);
                 List<IPEndPoint> peers = (await magnet.GetPeersAsync())
                     .Where(p => p.Port != 6881)
                     .ToList();
-                Console.WriteLine("Peers: " + peers.Count);
                 Peer peer = new (peers[Random.Shared.Next(0, peers.Count)]);
                 await peer.HandshakeAsync(magnet);
-                Console.WriteLine("Handshaked");
                 await peer.ExtensionHandshakeAsync(magnet);
-                Console.WriteLine("Extended handshake");
                 TorrentInfo torrent = await peer.RequestMetadata(magnet);
-                Console.WriteLine("Got Torrent");
                 byte[] pieceData = await peer.GetPiece(pieceIndex);
                 await File.WriteAllBytesAsync(pieceOutputFile, pieceData);
+            }
+                break;
+            case "magnet_download":
+            {
+                string action = args[1];
+                Debug.Assert(action == "-o");
+                string torrentOutputFile = args[2];
+                string magnetLink = args[3];
+                // retrieve the metadata
+                MagnetInfo magnet = MagnetInfo.FromMagentURL(magnetLink);
+                List<IPEndPoint> peers = (await magnet.GetPeersAsync())
+                    .Where(p => p.Port != 6881)
+                    .ToList();
+                Peer metadataPeer = new (peers[Random.Shared.Next(0, peers.Count)]);
+                await metadataPeer.HandshakeAsync(magnet);
+                await metadataPeer.ExtensionHandshakeAsync(magnet);
+                TorrentInfo torrent = await metadataPeer.RequestMetadata(magnet);
+                byte[] fileData = new byte[torrent.Length];
+                ConcurrentQueue<int> pendingPieces = new(Enumerable.Range(0, torrent.Pieces.Count));
+                await Parallel.ForEachAsync(peers.Take(5), new ParallelOptions { MaxDegreeOfParallelism = 5 },
+                    async (endpoint, cancellationToken) =>
+                    {
+                        using Peer peer = new(endpoint);
+                        await peer.HandshakeAsync(torrent);
+                        while (pendingPieces.TryDequeue(out int i))
+                        {
+                            byte[] pieceData;
+                            do
+                            {
+                                pieceData = await peer.GetPiece(i);
+                            }
+                            while (!SHA1.HashData(pieceData).AsSpan().SequenceEqual(torrent.Pieces[i]));
+                            pieceData.CopyTo(fileData, i * torrent.PieceLength);
+                            Console.WriteLine($"Received piece {i + 1} of {torrent.Pieces.Count}");
+                        }
+                    });
+                await File.WriteAllBytesAsync(torrentOutputFile, fileData);
             }
                 break;
             default:
