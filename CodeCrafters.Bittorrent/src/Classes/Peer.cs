@@ -69,8 +69,12 @@ public class Peer(IPEndPoint ipEndPoint) : IDisposable
         await _client.SendAsync(message, SocketFlags.None);
         byte[] extensionResponse = new byte[4];
         await _client.ReceiveAsync(extensionResponse, SocketFlags.None);
-        byte[] response = new byte[Convert.ToInt32(extensionResponse[3])];
-        await _client.ReceiveAsync(response.AsMemory());
+        byte[] responseBytes = new byte[Convert.ToInt32(extensionResponse[3])];
+        await _client.ReceiveAsync(responseBytes.AsMemory());
+        BencodeDictionary? response = BencodeDecoder.Decode(responseBytes[2..]) as BencodeDictionary;
+        BencodeDictionary metadataDictionary = (BencodeDictionary)response!["m"];
+        BencodeInteger metadataId =  (BencodeInteger)metadataDictionary["ut_metadata"];
+        Console.WriteLine($"Peer Metadata Extension ID: {metadataId.Value}");
     }
 
     public Task BeginMessageLoop()=> ReceiveLoopAsync();

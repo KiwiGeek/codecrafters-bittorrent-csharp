@@ -15,8 +15,8 @@ public class BencodeDictionary(Dictionary<BencodeString, BencodeToken> values) :
             .GetMethod("Decode", BindingFlags.NonPublic | BindingFlags.Static)!
             .CreateDelegate(typeof(DecodeDelegate));
     
-    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
-
+    public BencodeToken this[string key] => Value[new BencodeString(Encoding.UTF8.GetBytes(key))];
+    
     public override Dictionary<BencodeString, BencodeToken> Value => values;
 
     public static BencodeDictionary Decode(ReadOnlySpan<byte> data, ref int offset, BencodeValidationMode mode = BencodeValidationMode.Strict)
